@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, url_for, render_template, session, flash, jsonify
+from flask import Flask, request, redirect, url_for, render_template, session, flash
 import hashlib
 import os
 import secrets
@@ -9,7 +9,9 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 DB_PATH = os.environ.get("SUBSCRIPTIONS_DB", "subscriptions.db")
-ADMIN_CODE = os.environ.get("ADMIN_CODE", "CHANGE-ME-ADMIN")
+ADMIN_CODES = {
+    item.strip() for item in os.environ.get("ADMIN_CODES", "CHANGE-ME-OWNER,CHANGE-ME-FRIEND").split(",") if item.strip()
+}
 DURATIONS = {"day": ("يوم", 1), "week": ("أسبوع", 7), "month": ("شهر", 30), "year": ("سنة", 365)}
 
 
@@ -38,7 +40,6 @@ def now():
 
 
 def device_hash():
-    # A privacy-preserving binding identifier. It is not a hardware fingerprint.
     raw = f"{request.remote_addr or ''}|{request.headers.get('User-Agent', '')}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
@@ -64,7 +65,7 @@ def admin_required(view):
 def home():
     if request.method == "POST":
         value = request.form.get("code", "").strip()
-        if secrets.compare_digest(value, ADMIN_CODE):
+        if any(secrets.compare_digest(value, admin_code) for admin_code in ADMIN_CODES):
             session.clear()
             session["admin"] = True
             return redirect(url_for("admin"))
